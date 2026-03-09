@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pool Management Pro</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --dark: #343a40; --warning: #ffc107; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; background: #f4f7f6; color: #333; padding-bottom: 60px; }
+        
+        /* Dashboard & Stats */
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .stat-card { background: white; padding: 12px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid var(--primary); }
+        .stat-card h3 { margin: 0; font-size: 0.75rem; color: #666; text-transform: uppercase; }
+        .stat-val { font-size: 1.2rem; font-weight: bold; color: var(--dark); margin-top: 4px; }
+        .income-split { font-size: 0.75rem; color: #555; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
+
+        /* Storage Meter */
+        .storage-container { background: white; padding: 10px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .storage-bar-bg { background: #eee; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        #storageBar { background: var(--success); height: 100%; width: 0%; transition: 0.4s; }
+        .storage-text { font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; font-weight: bold; }
+
+        /* Camera Button */
+        .capture-section { background: white; padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 20px; border: 3px solid var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .file-input-label { background: var(--primary); color: white; padding: 18px 40px; border-radius: 40px; font-weight: bold; cursor: pointer; display: inline-block; font-size: 1.2rem; }
+        #cameraInput { display: none; }
+
+        /* Form */
+        .entry-form { background: white; padding: 15px; border-radius: 15px; margin-bottom: 20px; display: none; border: 2px solid var(--success); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        #previewImage { width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 220px; object-fit: contain; background: #000; }
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .input-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85rem; }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+
+        /* Search & List */
+        .search-box { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ccc; margin-bottom: 15px; box-sizing: border-box; font-size: 1rem; }
+        .swimmer-card { background: white; border-radius: 12px; padding: 10px; display: flex; align-items: center; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 6px solid var(--primary); }
+        .swimmer-photo { width: 80px; height: 65px; border-radius: 8px; object-fit: cover; margin-right: 12px; border: 1px solid #ddd; }
+        .timer-box { background: #f8f9fa; padding: 5px; border-radius: 6px; margin-top: 5px; border: 1px solid #eee; }
+        .timer { font-weight: bold; color: var(--primary); font-size: 1rem; }
+        .expired { border-left-color: var(--danger); background: #fff5f5; }
+        .expired .timer { color: var(--danger); animation: blink 1s infinite; }
+
+        /* Buttons */
+        .btn-sm { border: none; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; margin-top: 5px; width: 100%; cursor: pointer; }
+        .btn-start { background: var(--success); color: white; }
+        .btn-exit { background: #eee; color: var(--danger); }
+        .btn-export { background: var(--dark); color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-weight: bold; margin-bottom: 20px; }
+        .btn-reset { background: var(--danger); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
+        .modal img { max-width: 90%; max-height: 80%; border-radius: 10px; }
+        
+        @keyframes blink { 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <div class="stat-card">
+            <h3>Active Now</h3>
+            <div id="activeCount" class="stat-val">0</div>
+            <div id="activePpl" style="font-size: 0.75rem; color:#666;">0 People</div>
+        </div>
+        <div class="stat-card">
+            <h3>Total Income</h3>
+            <div id="totalIncome" class="stat-val">₹0</div>
+            <div class="income-split">C: <span id="cashTotal">0</span> | O: <span id="onlineTotal">0</span></div>
+        </div>
+    </div>
+
+    <div class="storage-container">
+        <div class="storage-text"><span>Phone Memory Status:</span><span id="storagePerc">0%</span></div>
+        <div class="storage-bar-bg"><div id="storageBar"></div></div>
+    </div>
+
+    <div class="capture-section" id="captureSection">
+        <label for="cameraInput" class="file-input-label">📸 ADD ENTRY</label>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment">
+    </div>
+
+    <div class="entry-form" id="entryForm">
+        <img id="previewImage">
+        <div class="input-row">
+            <div class="input-group"><label>People</label><input type="number" id="peopleCount" value="1" oninput="autoCalc()"></div>
+            <div class="input-group"><label>Total ₹</label><input type="number" id="totalPrice" value="100"></div>
+        </div>
+        <div class="input-row">
+            <div class="input-group"><label>Cash ₹</label><input type="number" id="cashPay" value="100"></div>
+            <div class="input-group"><label>Online ₹</label><input type="number" id="onlinePay" value="0"></div>
+        </div>
+        <button class="btn-sm btn-start" onclick="saveToQueue()" style="padding: 18px; font-size: 1rem; margin-bottom: 10px;">SAVE GROUP</button>
+        <button onclick="resetForm()" style="width:100%; background:#999; color:white; border:none; padding:10px; border-radius:8px;">RETAKE PHOTO</button>
+    </div>
+
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Find Group # or Price..." onkeyup="renderList()">
+
+    <div id="swimmerList"></div>
+
+    <div class="admin-actions">
+        <button class="btn-export" onclick="exportToExcel()">📊 DOWNLOAD DAILY EXCEL REPORT</button>
+        <div style="border:2px solid #ffcccc; padding:12px; border-radius:10px; background:#fffafa; text-align: center;">
+            <p style="color:var(--danger); font-size:0.85rem; margin:0 0 10px 0; font-weight:bold;">DANGER ZONE</p>
+            <button class="btn-reset" onclick="resetDay()">RESET EVERYTHING (NEW DAY)</button>
+        </div>
+    </div>
+
+    <div class="modal" id="imageModal" onclick="this.style.display='none'"><img id="modalImg"></div>
+
+    <script>
+        let sessions = JSON.parse(localStorage.getItem('pool_sessions')) || [];
+        let stats = JSON.parse(localStorage.getItem('pool_stats')) || { cash: 0, online: 0, total: 0 };
+        let currentBase64 = "";
+
+        // IMAGE COMPRESSION LOGIC
+        document.getElementById('cameraInput').addEventListener('change', function(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600; // Limits size to save space
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to small JPEG (0.6 quality is enough to see faces)
+                    currentBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    document.getElementById('previewImage').src = currentBase64;
+                    document.getElementById('captureSection').style.display = 'none';
+                    document.getElementById('entryForm').style.display = 'block';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function autoCalc() {
+            const count = document.getElementById('peopleCount').value || 0;
+            const total = count * 100;
+            document.getElementById('totalPrice').value = total;
+            document.getElementById('cashPay').value = total;
+            document.getElementById('onlinePay').value = 0;
+        }
+
+        function saveToQueue() {
+            const cash = parseInt(document.getElementById('cashPay').value) || 0;
+            const online = parseInt(document.getElementById('onlinePay').value) || 0;
+            sessions.push({
+                photo: currentBase64, count: parseInt(document.getElementById('peopleCount').value) || 1,
+                paidCash: cash, paidOnline: online, totalPaid: cash + online,
+                started: false, startTimeStr: null, endTimeStr: null, endTimeMs: null, date: new Date().toLocaleDateString()
+            });
+            stats.cash += cash; stats.online += online; stats.total += (cash + online);
+            saveData(); resetForm();
+        }
+
+        function startTimer(index) {
+            const now = new Date(); const end = new Date(now.getTime() + (60 * 60 * 1000));
+            sessions[index].started = true;
+            sessions[index].startTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            sessions[index].endTimeStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            sessions[index].endTimeMs = end.getTime();
+            saveData();
+        }
+
+        function removeEntry(index) { if (confirm("Remove this session?")) { sessions.splice(index, 1); saveData(); } }
+        
+        function resetDay() { 
+            if (confirm("Reset everything for a new day?") && confirm("FINAL WARNING: All data and photos will be deleted!")) { 
+                sessions = []; stats = { cash: 0, online: 0, total: 0 }; saveData(); 
+            } 
+        }
+
+        function saveData() {
+            localStorage.setItem('pool_sessions', JSON.stringify(sessions));
+            localStorage.setItem('pool_stats', JSON.stringify(stats));
+            updateStorageMeter();
+            renderList();
+        }
+
+        function updateStorageMeter() {
+            let totalChars = 0;
+            for (let key in localStorage) { if (localStorage.hasOwnProperty(key)) totalChars += (localStorage[key].length + key.length); }
+            const usedMB = (totalChars * 2) / 1024 / 1024;
+            const limitMB = 5; // Standard mobile browser limit
+            const perc = Math.min(100, Math.round((usedMB / limitMB) * 100));
+            const bar = document.getElementById('storageBar');
+            bar.style.width = perc + "%";
+            bar.style.background = perc > 80 ? 'var(--danger)' : (perc > 50 ? 'var(--warning)' : 'var(--success)');
+            document.getElementById('storagePerc').innerText = perc + "%";
+        }
+
+        function renderList() {
+            const list = document.getElementById('swimmerList');
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            list.innerHTML = "";
+            let activeG = 0; let activeP = 0;
+            const now = new Date().getTime();
+
+            sessions.forEach((s, i) => {
+                const searchStr = `group #${i+1} ${s.totalPaid}`.toLowerCase();
+                if (query && !searchStr.includes(query)) return;
+
+                let statusHtml = ""; let actionHtml = ""; let isExpired = false;
+                if (!s.started) {
+                    statusHtml = `<span style="color:#888; font-style:italic;">Queue</span>`;
+                    actionHtml = `<button class="btn-sm btn-start" onclick="startTimer(${i})">START TIMER</button>`;
+                } else {
+                    activeG++; activeP += s.count;
+                    const diff = s.endTimeMs - now; isExpired = diff <= 0;
+                    const displayMins = Math.max(0, Math.floor(diff/60000));
+                    statusHtml = `<div class="timer-box"><span class="timer">${isExpired ? 'OVERTIME' : displayMins+'m left'}</span><br><small><b>In:</b> ${s.startTimeStr} | <b>Out:</b> ${s.endTimeStr}</small></div>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = `swimmer-card ${isExpired ? 'expired' : ''}`;
+                card.innerHTML = `<img src="${s.photo}" class="swimmer-photo" onclick="showModal('${s.photo}')">
+                    <div style="flex:1"><b>#${i+1} (${s.count} ppl)</b><br><small>₹${s.totalPaid} (C:${s.paidCash}/O:${s.paidOnline})</small>${statusHtml}</div>
+                    <div style="min-width: 85px;">${actionHtml}<button class="btn-sm btn-exit" onclick="removeEntry(${i})">EXIT</button></div>`;
+                list.appendChild(card);
+            });
+            document.getElementById('activeCount').innerText = activeG;
+            document.getElementById('activePpl').innerText = activeP + " People";
+            document.getElementById('totalIncome').innerText = "₹" + stats.total;
+            document.getElementById('cashTotal').innerText = stats.cash;
+            document.getElementById('onlineTotal').innerText = stats.online;
+        }
+
+        function showModal(src) { document.getElementById('modalImg').src = src; document.getElementById('imageModal').style.display = 'flex'; }
+        function resetForm() { document.getElementById('entryForm').style.display = 'none'; document.getElementById('captureSection').style.display = 'block'; document.getElementById('cameraInput').value = ""; }
+
+        function exportToExcel() {
+            if (sessions.length === 0 && stats.total === 0) { alert("No data to export!"); return; }
+            const data = sessions.map((s, idx) => ({ "Group": idx+1, "Date": s.date, "Ppl": s.count, "Total": s.totalPaid, "Cash": s.paidCash, "Online": s.paidOnline, "In": s.startTimeStr, "Out": s.endTimeStr }));
+            data.push({}, { "Group": "TOTALS", "Total": stats.total, "Cash": stats.cash, "Online": stats.online });
+            const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pool Report"); XLSX.writeFile(wb, `Pool_Report_${new Date().toLocaleDateString()}.xlsx`);
+        }
+
+        setInterval(renderList, 30000); // Auto-refresh timers every 30s
+        updateStorageMeter();
+        renderList();
+    </script>
+</body>
+</html>
