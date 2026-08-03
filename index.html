@@ -103,6 +103,7 @@
   </style>
 </head>
 <body>
+  <p>Total visits: <span id="visits">...</span></p>
   <div class="container">
     <h1>MAH BCA CET Response Analyzer</h1>
 
@@ -152,7 +153,11 @@
     </div>
   </div>
 
-  <script>
+  <script src="https://api.countapi.xyz/hit/YOUR-USERNAME.github.io/visits?callback=cb">
+  function cb(response) {
+    document.getElementById('visits').innerText = response.value;
+  }
+  
     document.getElementById('fileInput').addEventListener('change', function(event) {
       const file = event.target.files[0];
       if (!file) return;
